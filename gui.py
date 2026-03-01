@@ -1,35 +1,56 @@
 import tkinter as tk
-from tkinter import ttk, filedialog, messagebox
+from tkinter import filedialog
 from key_derivation import derive_key
 from file_crypto import encrypt_file, decrypt_file
 import os
 
+# ── Palette ────────────────────────────────────────────────────────────────────
+BG          = "#0f1117"
+SURFACE     = "#161b27"
+SURFACE2    = "#1e2535"
+BORDER      = "#2a3348"
+BORDER_LT   = "#3d4f6e"
 
-# ─── Palette ───────────────────────────────────────────────────────────────────
-BG        = "#0d0f14"
-PANEL     = "#13161d"
-CARD      = "#1a1e28"
-BORDER    = "#252a38"
-ACCENT    = "#00e5ff"
-ACCENT2   = "#7c3aed"
-SUCCESS   = "#22c55e"
-ERROR_CLR = "#ef4444"
-TEXT      = "#e2e8f0"
-MUTED     = "#64748b"
-WHITE     = "#ffffff"
+# Accent — electric blue
+BLUE        = "#3b82f6"
+BLUE_HOVER  = "#2563eb"
+BLUE_LIGHT  = "#93c5fd"
+BLUE_BG     = "#1e3a5f"
 
-FONT_TITLE  = ("Courier New", 22, "bold")
-FONT_LABEL  = ("Courier New", 9, "bold")
-FONT_BODY   = ("Courier New", 10)
-FONT_MONO   = ("Courier New", 9)
-FONT_SMALL  = ("Courier New", 8)
+# Accent2 — violet
+VIOLET      = "#8b5cf6"
+VIOLET_HOVER= "#7c3aed"
+VIOLET_LIGHT= "#c4b5fd"
+VIOLET_BG   = "#2e1b5e"
+
+# Status
+SUCCESS     = "#10b981"
+SUCCESS_BG  = "#064e3b"
+ERROR_CLR   = "#f87171"
+ERROR_BG    = "#450a0a"
+WARNING     = "#f59e0b"
+
+# Text hierarchy
+TEXT_H1     = "#f1f5f9"
+TEXT_H2     = "#cbd5e1"
+TEXT_BODY   = "#94a3b8"
+TEXT_DIM    = "#475569"
+
+# Fonts
+F_TITLE  = ("Segoe UI", 18, "bold")
+F_LABEL  = ("Segoe UI", 9, "bold")
+F_BODY   = ("Segoe UI", 10)
+F_MONO   = ("Consolas", 9)
+F_SMALL  = ("Segoe UI", 8)
+F_BTN    = ("Segoe UI", 10, "bold")
+F_RUN    = ("Segoe UI", 11, "bold")
 
 
 class RC6App:
     def __init__(self, root):
         self.root = root
-        self.root.title("RC6 · Secure Encryptor")
-        self.root.geometry("520x620")
+        self.root.title("RC6 Secure Encryptor")
+        self.root.geometry("500x640")
         self.root.configure(bg=BG)
         self.root.resizable(False, False)
 
@@ -37,236 +58,230 @@ class RC6App:
         self.show_password = False
 
         self._build_ui()
-        self._animate_title()
-
-    # ── Animation helpers ──────────────────────────────────────────────────────
-
-    def _animate_title(self):
-        """Blinking cursor effect on title label."""
-        current = self._cursor_visible
-        self._cursor_visible = not current
-        ch = "█" if self._cursor_visible else " "
-        self.title_label.config(text=f"  RC6 ENCRYPTOR {ch}")
-        self.root.after(600, self._animate_title)
-
-    # ── UI builder ─────────────────────────────────────────────────────────────
 
     def _build_ui(self):
-        self._cursor_visible = True
+        # ── Header ──
+        hdr = tk.Frame(self.root, bg=SURFACE)
+        hdr.pack(fill="x")
 
-        # ── outer canvas with grid lines ──
-        self.canvas = tk.Canvas(self.root, bg=BG, highlightthickness=0)
-        self.canvas.place(relwidth=1, relheight=1)
-        self._draw_grid()
+        hdr_inner = tk.Frame(hdr, bg=SURFACE)
+        hdr_inner.pack(fill="x", padx=24, pady=16)
 
-        # ── header ──
-        header = tk.Frame(self.root, bg=BG)
-        header.pack(fill="x", padx=24, pady=(22, 0))
+        tk.Label(hdr_inner, text="RC6", font=("Segoe UI", 20, "bold"),
+                 fg=BLUE, bg=SURFACE).pack(side="left")
+        tk.Label(hdr_inner, text=" Secure Encryptor", font=("Segoe UI", 14),
+                 fg=TEXT_H1, bg=SURFACE).pack(side="left", pady=3)
+        tk.Label(hdr_inner, text="v2.0", font=F_SMALL,
+                 fg=TEXT_DIM, bg=SURFACE).pack(side="right", pady=3)
 
-        self.title_label = tk.Label(
-            header,
-            text="  RC6 ENCRYPTOR █",
-            font=FONT_TITLE,
-            fg=ACCENT, bg=BG,
-            anchor="w"
-        )
-        self.title_label.pack(side="left")
+        tk.Frame(self.root, bg=BLUE, height=2).pack(fill="x")
 
-        ver_lbl = tk.Label(header, text="v2.0", font=FONT_SMALL, fg=MUTED, bg=BG)
-        ver_lbl.pack(side="right", pady=8)
+        content = tk.Frame(self.root, bg=BG)
+        content.pack(fill="both", expand=True, padx=20, pady=18)
 
-        # separator
-        self._sep(self.root, ACCENT, pady=(8, 0))
-
-        # ── main card ──
-        card = tk.Frame(self.root, bg=CARD, bd=0, relief="flat",
-                        highlightthickness=1, highlightbackground=BORDER)
-        card.pack(fill="both", padx=20, pady=14, expand=True)
-
-        inner = tk.Frame(card, bg=CARD)
-        inner.pack(fill="both", expand=True, padx=18, pady=16)
-
-        # MODE
-        self._section_label(inner, "// MODE")
-        mode_row = tk.Frame(inner, bg=CARD)
-        mode_row.pack(fill="x", pady=(4, 12))
+        # ── MODE ──
+        self._label(content, "Mode")
+        mode_row = tk.Frame(content, bg=BG)
+        mode_row.pack(fill="x", pady=(6, 16))
 
         self.mode_var = tk.StringVar(value="encrypt")
-        self._radio(mode_row, "ENCRYPT", "encrypt")
-        self._radio(mode_row, "DECRYPT", "decrypt")
+        self._mode_btn(mode_row, "🔒  Encrypt", "encrypt", BLUE,    BLUE_BG,   BLUE_LIGHT)
+        self._mode_btn(mode_row, "🔓  Decrypt", "decrypt", VIOLET,  VIOLET_BG, VIOLET_LIGHT)
 
-        # KEY SIZE
-        self._section_label(inner, "// KEY SIZE")
-        ks_row = tk.Frame(inner, bg=CARD)
-        ks_row.pack(fill="x", pady=(4, 12))
+        # ── KEY SIZE ──
+        self._label(content, "Key Size")
+        ks_row = tk.Frame(content, bg=BG)
+        ks_row.pack(fill="x", pady=(6, 16))
 
         self.key_size_var = tk.StringVar(value="16")
-        for ks in ("16", "24", "32"):
-            self._key_btn(ks_row, ks)
+        for ks, desc in (("16", "128-bit"), ("24", "192-bit"), ("32", "256-bit")):
+            self._key_btn(ks_row, ks, desc)
 
-        # PASSWORD
-        self._section_label(inner, "// PASSWORD")
-        pw_row = tk.Frame(inner, bg=CARD)
-        pw_row.pack(fill="x", pady=(4, 12))
-
-        pw_frame = tk.Frame(pw_row, bg=BORDER, highlightthickness=1,
-                            highlightbackground=BORDER)
-        pw_frame.pack(fill="x")
+        # ── PASSWORD ──
+        self._label(content, "Password")
+        pw_outer = tk.Frame(content, bg=SURFACE2,
+                            highlightthickness=1, highlightbackground=BORDER)
+        pw_outer.pack(fill="x", pady=(6, 16))
 
         self.password_entry = tk.Entry(
-            pw_frame, show="●", font=FONT_BODY,
-            bg=PANEL, fg=TEXT, insertbackground=ACCENT,
-            relief="flat", bd=8,
-            highlightthickness=0
+            pw_outer, show="●", font=F_BODY,
+            fg=TEXT_H1, bg=SURFACE2,
+            insertbackground=BLUE,
+            relief="flat", bd=10, highlightthickness=0
         )
         self.password_entry.pack(side="left", fill="x", expand=True)
+        self.password_entry.bind("<FocusIn>",
+            lambda e: pw_outer.config(highlightbackground=BLUE))
+        self.password_entry.bind("<FocusOut>",
+            lambda e: pw_outer.config(highlightbackground=BORDER))
 
-        eye_btn = tk.Button(
-            pw_frame, text="◉", font=("Courier New", 12),
-            bg=PANEL, fg=MUTED, relief="flat", bd=0,
-            activebackground=PANEL, activeforeground=ACCENT,
+        self.eye_btn = tk.Button(
+            pw_outer, text="○", font=("Segoe UI", 13),
+            bg=SURFACE2, fg=TEXT_DIM,
+            activebackground=SURFACE2, activeforeground=BLUE,
+            relief="flat", bd=0, padx=10,
             cursor="hand2", command=self.toggle_password
         )
-        eye_btn.pack(side="right", padx=6)
+        self.eye_btn.pack(side="right")
 
-        # FILE
-        self._section_label(inner, "// FILE")
-        file_row = tk.Frame(inner, bg=CARD)
-        file_row.pack(fill="x", pady=(4, 12))
+        # ── FILE ──
+        self._label(content, "File")
+        file_card = tk.Frame(content, bg=SURFACE2,
+                             highlightthickness=1, highlightbackground=BORDER)
+        file_card.pack(fill="x", pady=(6, 16))
 
-        choose_btn = tk.Button(
-            file_row, text="[ SELECT FILE ]",
-            font=FONT_LABEL, fg=ACCENT, bg=PANEL,
-            activeforeground=WHITE, activebackground=ACCENT2,
-            relief="flat", bd=0, padx=14, pady=8,
+        file_inner = tk.Frame(file_card, bg=SURFACE2)
+        file_inner.pack(fill="x", padx=12, pady=10)
+
+        self.file_icon = tk.Label(file_inner, text="📄", font=("Segoe UI", 16),
+                                  bg=SURFACE2, fg=TEXT_DIM)
+        self.file_icon.pack(side="left", padx=(0, 10))
+
+        file_text_col = tk.Frame(file_inner, bg=SURFACE2)
+        file_text_col.pack(side="left", fill="x", expand=True)
+
+        self.file_name_lbl = tk.Label(file_text_col, text="No file selected",
+                                      font=F_BODY, fg=TEXT_DIM, bg=SURFACE2, anchor="w")
+        self.file_name_lbl.pack(fill="x")
+
+        self.file_path_lbl = tk.Label(file_text_col, text="Click 'Browse' to choose a file",
+                                      font=F_SMALL, fg=TEXT_DIM, bg=SURFACE2, anchor="w")
+        self.file_path_lbl.pack(fill="x")
+
+        browse_btn = tk.Button(
+            file_inner, text="Browse",
+            font=F_BTN, fg=TEXT_H1, bg=SURFACE,
+            activeforeground=TEXT_H1, activebackground=BORDER_LT,
+            relief="flat", bd=0, padx=16, pady=6,
             cursor="hand2",
-            highlightthickness=1, highlightbackground=ACCENT,
+            highlightthickness=1, highlightbackground=BORDER_LT,
             command=self.choose_file
         )
-        choose_btn.pack(side="left")
-        self._hover(choose_btn, ACCENT2, PANEL)
+        browse_btn.pack(side="right")
+        self._hover(browse_btn, BORDER_LT, SURFACE)
 
-        self.file_label = tk.Label(
-            file_row, text="  no file selected",
-            font=FONT_MONO, fg=MUTED, bg=CARD,
-            anchor="w"
-        )
-        self.file_label.pack(side="left", fill="x", expand=True, padx=10)
+        # ── PROGRESS ──
+        prog_header = tk.Frame(content, bg=BG)
+        prog_header.pack(fill="x", pady=(0, 6))
 
-        # PROGRESS
-        self._sep(inner, BORDER, pady=(4, 10))
+        tk.Label(prog_header, text="PROGRESS", font=F_LABEL,
+                 fg=TEXT_BODY, bg=BG).pack(side="left")
+        self._pct_label = tk.Label(prog_header, text="—", font=F_MONO,
+                                   fg=TEXT_DIM, bg=BG)
+        self._pct_label.pack(side="right")
 
-        prog_bg = tk.Frame(inner, bg=BORDER, height=6)
-        prog_bg.pack(fill="x", pady=(0, 4))
-        prog_bg.pack_propagate(False)
+        prog_track = tk.Frame(content, bg=SURFACE2, height=8,
+                              highlightthickness=1, highlightbackground=BORDER)
+        prog_track.pack(fill="x")
+        prog_track.pack_propagate(False)
 
-        self._prog_track = tk.Frame(prog_bg, bg=BORDER)
-        self._prog_track.place(relwidth=1, relheight=1)
-
-        self._prog_fill = tk.Frame(prog_bg, bg=ACCENT)
+        self._prog_fill = tk.Frame(prog_track, bg=BLUE, height=8)
         self._prog_fill.place(relwidth=0, relheight=1)
 
-        self._pct_label = tk.Label(inner, text="0%", font=FONT_SMALL,
-                                   fg=MUTED, bg=CARD)
-        self._pct_label.pack(anchor="e")
+        # ── RUN ──
+        self.run_btn = tk.Button(
+            content, text="Run",
+            font=F_RUN, fg=TEXT_H1, bg=BLUE,
+            activeforeground=TEXT_H1, activebackground=BLUE_HOVER,
+            relief="flat", bd=0, pady=12,
+            cursor="hand2", command=self.run_crypto
+        )
+        self.run_btn.pack(fill="x", pady=(16, 10))
+        self._hover(self.run_btn, BLUE_HOVER, BLUE)
 
-        # RUN BUTTON
-        run_btn = tk.Button(
-            inner, text="▶  RUN",
-            font=("Courier New", 13, "bold"),
-            fg=BG, bg=ACCENT,
-            activeforeground=BG, activebackground=ACCENT2,
-            relief="flat", bd=0,
-            padx=0, pady=10,
+        # ── STATUS ──
+        self.status_frame = tk.Frame(content, bg=BG)
+        self.status_frame.pack(fill="x")
+
+        self.status_icon = tk.Label(self.status_frame, text="",
+                                    font=("Segoe UI", 12), bg=BG, fg=TEXT_DIM)
+        self.status_icon.pack(side="left", padx=(0, 8))
+
+        self.status_label = tk.Label(self.status_frame, text="",
+                                     font=F_BODY, fg=TEXT_DIM, bg=BG,
+                                     anchor="w", justify="left", wraplength=400)
+        self.status_label.pack(side="left", fill="x", expand=True)
+
+        # ── Footer ──
+        tk.Frame(self.root, bg=BORDER, height=1).pack(fill="x")
+        tk.Label(self.root,
+                 text="RC6-CBC  ·  SHA-256 key derivation  ·  PKCS#7 padding",
+                 font=F_SMALL, fg=TEXT_DIM, bg=SURFACE
+                 ).pack(fill="x", pady=8, padx=20, anchor="w")
+
+    # ── Helpers ────────────────────────────────────────────────────────────────
+
+    def _label(self, parent, text):
+        tk.Label(parent, text=text.upper(), font=F_LABEL,
+                 fg=TEXT_BODY, bg=BG, anchor="w").pack(fill="x")
+
+    def _mode_btn(self, parent, label, value, accent, accent_bg, accent_lt):
+        btn = tk.Button(
+            parent, text=label, font=F_BTN,
+            relief="flat", bd=0, padx=0, pady=10,
             cursor="hand2",
-            command=self.run_crypto
+            command=lambda v=value: self._select_mode(v)
         )
-        run_btn.pack(fill="x", pady=(10, 6))
-        self._hover(run_btn, ACCENT2, ACCENT, fg_on=WHITE, fg_off=BG)
+        side_pad = (0, 6) if value == "encrypt" else (0, 0)
+        btn.pack(side="left", fill="x", expand=True, padx=side_pad)
+        setattr(self, f"_mbtn_{value}", btn)
+        setattr(self, f"_maccent_{value}",    accent)
+        setattr(self, f"_maccent_bg_{value}", accent_bg)
+        setattr(self, f"_maccent_lt_{value}", accent_lt)
+        self._refresh_mode_btns()
 
-        # STATUS
-        self.status_label = tk.Label(
-            inner, text="",
-            font=FONT_MONO, fg=MUTED, bg=CARD,
-            wraplength=440, justify="left"
+    def _select_mode(self, value):
+        self.mode_var.set(value)
+        self._refresh_mode_btns()
+
+    def _refresh_mode_btns(self):
+        for val in ("encrypt", "decrypt"):
+            btn = getattr(self, f"_mbtn_{val}", None)
+            if not btn:
+                continue
+            accent    = getattr(self, f"_maccent_{val}")
+            accent_bg = getattr(self, f"_maccent_bg_{val}")
+            accent_lt = getattr(self, f"_maccent_lt_{val}")
+            selected  = self.mode_var.get() == val
+
+            if selected:
+                btn.config(bg=accent_bg, fg=accent_lt,
+                           highlightthickness=2, highlightbackground=accent,
+                           activebackground=accent_bg, activeforeground=accent_lt)
+            else:
+                btn.config(bg=SURFACE2, fg=TEXT_BODY,
+                           highlightthickness=1, highlightbackground=BORDER,
+                           activebackground=SURFACE2, activeforeground=TEXT_H2)
+
+    def _key_btn(self, parent, ks, desc):
+        btn = tk.Button(
+            parent, text=f"{ks} B\n{desc}", font=F_SMALL,
+            relief="flat", bd=0, padx=0, pady=8,
+            cursor="hand2", justify="center",
+            command=lambda k=ks: self._select_key(k)
         )
-        self.status_label.pack(fill="x", pady=(4, 0))
-
-        # footer
-        self._sep(self.root, BORDER)
-        footer = tk.Label(
-            self.root,
-            text="RC6-CBC  ·  SHA-256 key derivation  ·  PKCS#7 padding",
-            font=FONT_SMALL, fg=MUTED, bg=BG
-        )
-        footer.pack(pady=(4, 10))
-
-    # ── widget helpers ─────────────────────────────────────────────────────────
-
-    def _sep(self, parent, color, pady=(0, 0)):
-        f = tk.Frame(parent, bg=color, height=1)
-        f.pack(fill="x", padx=20, pady=pady)
-
-    def _section_label(self, parent, text):
-        tk.Label(parent, text=text, font=FONT_LABEL,
-                 fg=ACCENT2, bg=CARD, anchor="w").pack(fill="x", pady=(0, 2))
-
-    def _radio(self, parent, label, value):
-        btn = tk.Radiobutton(
-            parent, text=label, variable=self.mode_var, value=value,
-            font=FONT_LABEL, fg=TEXT, bg=CARD,
-            selectcolor=CARD,
-            activebackground=CARD, activeforeground=ACCENT,
-            indicatoron=False,
-            relief="flat", bd=0,
-            padx=18, pady=7,
-            cursor="hand2",
-            highlightthickness=1, highlightbackground=BORDER,
-            command=lambda: self._update_mode_btns()
-        )
-        btn.pack(side="left", padx=(0, 8))
-        setattr(self, f"_radio_{value}", btn)
-        self._update_mode_btns()
-
-    def _update_mode_btns(self):
-        for val, color in (("encrypt", ACCENT), ("decrypt", ACCENT2)):
-            btn = getattr(self, f"_radio_{val}", None)
-            if btn:
-                selected = self.mode_var.get() == val
-                btn.config(
-                    fg=BG if selected else MUTED,
-                    bg=color if selected else PANEL,
-                    highlightbackground=color if selected else BORDER
-                )
-
-    def _key_btn(self, parent, ks):
-        btn = tk.Radiobutton(
-            parent, text=f"{ks}B", variable=self.key_size_var, value=ks,
-            font=FONT_LABEL, fg=MUTED, bg=PANEL,
-            selectcolor=PANEL,
-            activebackground=PANEL, activeforeground=ACCENT,
-            indicatoron=False,
-            relief="flat", bd=0,
-            padx=14, pady=6,
-            cursor="hand2",
-            highlightthickness=1, highlightbackground=BORDER
-        )
-        btn.pack(side="left", padx=(0, 6))
-        # Bind to update colors
-        btn.config(command=lambda b=btn: self._style_key_btns())
+        btn.pack(side="left", fill="x", expand=True, padx=(0, 6))
         setattr(self, f"_kbtn_{ks}", btn)
-        self._style_key_btns()
+        self._refresh_key_btns()
 
-    def _style_key_btns(self):
+    def _select_key(self, ks):
+        self.key_size_var.set(ks)
+        self._refresh_key_btns()
+
+    def _refresh_key_btns(self):
         for ks in ("16", "24", "32"):
             btn = getattr(self, f"_kbtn_{ks}", None)
-            if btn:
-                sel = self.key_size_var.get() == ks
-                btn.config(
-                    fg=BG if sel else MUTED,
-                    bg=ACCENT if sel else PANEL,
-                    highlightbackground=ACCENT if sel else BORDER
-                )
+            if not btn:
+                continue
+            selected = self.key_size_var.get() == ks
+            if selected:
+                btn.config(bg=BLUE_BG, fg=BLUE_LIGHT,
+                           highlightthickness=2, highlightbackground=BLUE,
+                           activebackground=BLUE_BG, activeforeground=BLUE_LIGHT)
+            else:
+                btn.config(bg=SURFACE2, fg=TEXT_BODY,
+                           highlightthickness=1, highlightbackground=BORDER,
+                           activebackground=SURFACE2, activeforeground=TEXT_H2)
 
     def _hover(self, widget, bg_on, bg_off, fg_on=None, fg_off=None):
         def on(e):
@@ -280,85 +295,95 @@ class RC6App:
         widget.bind("<Enter>", on)
         widget.bind("<Leave>", off)
 
-    def _draw_grid(self):
-        """Draw subtle dot-grid background."""
-        w, h = 520, 620
-        step = 28
-        for x in range(0, w, step):
-            for y in range(0, h, step):
-                self.canvas.create_oval(x, y, x+1, y+1, fill="#1c2030", outline="")
-
-    # ── logic ──────────────────────────────────────────────────────────────────
+    # ── Logic ──────────────────────────────────────────────────────────────────
 
     def toggle_password(self):
         self.show_password = not self.show_password
         self.password_entry.config(show="" if self.show_password else "●")
+        self.eye_btn.config(text="●" if self.show_password else "○",
+                            fg=BLUE if self.show_password else TEXT_DIM)
 
     def choose_file(self):
         path = filedialog.askopenfilename()
         if path:
             self.selected_file = path
             name = os.path.basename(path)
-            self.file_label.config(
-                text=f"  {name}",
-                fg=TEXT
-            )
+            size_kb = os.path.getsize(path) / 1024
+            size_str = (f"{size_kb:.1f} KB" if size_kb < 1024
+                        else f"{size_kb/1024:.2f} MB")
+
+            self.file_icon.config(fg=BLUE)
+            self.file_name_lbl.config(text=name, fg=TEXT_H1)
+            self.file_path_lbl.config(
+                text=f"{path}  ·  {size_str}", fg=TEXT_BODY)
+            self._set_status("", "", "")
 
     def update_progress(self, value):
-        pct = value / 100
-        self._prog_fill.place(relwidth=pct, relheight=1)
-        self._pct_label.config(text=f"{int(value)}%")
+        self._prog_fill.place(relwidth=value / 100, relheight=1)
+        self._pct_label.config(text=f"{int(value)}%", fg=TEXT_H2)
         self.root.update_idletasks()
 
-    def _set_status(self, text, color=MUTED):
+    def _set_status(self, text, color, icon=""):
+        self.status_icon.config(text=icon, fg=color)
         self.status_label.config(text=text, fg=color)
 
     def run_crypto(self):
         if not self.selected_file:
-            self._set_status("✖  No file selected.", ERROR_CLR)
+            self._set_status("Please select a file first.", ERROR_CLR, "✖")
             return
-
         password = self.password_entry.get()
         if not password:
-            self._set_status("✖  Password cannot be empty.", ERROR_CLR)
+            self._set_status("Password cannot be empty.", ERROR_CLR, "✖")
             return
 
         key = derive_key(password, int(self.key_size_var.get()))
         self.update_progress(0)
-        self._set_status("⏳  Processing...", ACCENT)
+        self._set_status("Processing, please wait…", WARNING, "⏳")
+        self.run_btn.config(state="disabled", bg=BORDER, fg=TEXT_DIM)
+        self.root.update_idletasks()
 
         try:
             mode = self.mode_var.get()
             if mode == "encrypt":
                 output = self.selected_file + ".rc6"
                 elapsed, size = encrypt_file(
-                    self.selected_file, output, key, self.update_progress
-                )
-                action = "Encrypted"
+                    self.selected_file, output, key, self.update_progress)
+                action = "File encrypted"
             else:
-                # Remove .rc6, then insert _decrypted before the original extension
                 base = self.selected_file.removesuffix(".rc6")
                 name, ext = os.path.splitext(base)
                 output = name + "_decrypted" + ext
                 elapsed, size = decrypt_file(
-                    self.selected_file, output, key, self.update_progress
-                )
-                action = "Decrypted"
+                    self.selected_file, output, key, self.update_progress)
+                action = "File decrypted"
 
             speed = (size / (1024 * 1024)) / elapsed if elapsed > 0 else 0
             out_name = os.path.basename(output)
 
-            self._set_status(
-                f"✔  {action} successfully  ·  {elapsed:.3f}s  ·  {speed:.2f} MB/s\n"
-                f"   → {out_name}",
-                SUCCESS
-            )
-
-            # Flash progress bar green
             self._prog_fill.config(bg=SUCCESS)
-            self.root.after(1800, lambda: self._prog_fill.config(bg=ACCENT))
+            self._set_status(
+                f"{action} in {elapsed:.3f}s  ·  {speed:.2f} MB/s\n→ {out_name}",
+                SUCCESS, "✔"
+            )
+            self.root.after(2200, lambda: self._prog_fill.config(bg=BLUE))
+
+            # Clear password field
+            self.password_entry.delete(0, "end")
+            if self.show_password:
+                self.show_password = False
+                self.password_entry.config(show="●")
+                self.eye_btn.config(text="○", fg=TEXT_DIM)
+
+            # Clear file selection
+            self.selected_file = None
+            self.file_icon.config(fg=TEXT_DIM)
+            self.file_name_lbl.config(text="No file selected", fg=TEXT_DIM)
+            self.file_path_lbl.config(text="Click 'Browse' to choose a file", fg=TEXT_DIM)
 
         except Exception as e:
-            self._set_status(f"✖  Error: {e}", ERROR_CLR)
+            self._set_status(f"Error: {e}", ERROR_CLR, "✖")
             self._prog_fill.place(relwidth=0)
-            self._pct_label.config(text="0%")
+            self._pct_label.config(text="—", fg=TEXT_DIM)
+
+        finally:
+            self.run_btn.config(state="normal", bg=BLUE, fg=TEXT_H1)
