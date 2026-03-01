@@ -1,212 +1,141 @@
-import struct
-import os
 import tkinter as tk
-from tkinter import filedialog, messagebox
-
-# =========================
-# ПАРАМЕТРИ RC6
-# =========================
-W = 32
-R = 20
-MOD = 2 ** W
-LOG_W = 5
-
-P32 = 0xB7E15163
-Q32 = 0x9E3779B9
-
-
-# =========================
-# ДОПОМІЖНІ ФУНКЦІЇ
-# =========================
-def rotl(x, n):
-    n %= W
-    return ((x << n) | (x >> (W - n))) & 0xFFFFFFFF
-
-
-def rotr(x, n):
-    n %= W
-    return ((x >> n) | (x << (W - n))) & 0xFFFFFFFF
-
-
-def pad(data):
-    pad_len = 16 - (len(data) % 16)
-    return data + bytes([pad_len] * pad_len)
-
-
-def unpad(data):
-    pad_len = data[-1]
-    return data[:-pad_len]
-
-
-# =========================
-# KEY SCHEDULE
-# =========================
-def key_schedule(key: bytes):
-    b = len(key)
-    c = max(1, (b + 3) // 4)
-
-    L = [0] * c
-    for i in range(b):
-        L[i // 4] |= key[i] << (8 * (i % 4))
-
-    t = 2 * R + 4
-    S = [0] * t
-    S[0] = P32
-    for i in range(1, t):
-        S[i] = (S[i - 1] + Q32) % MOD
-
-    A = B = i = j = 0
-    v = 3 * max(c, t)
-
-    for _ in range(v):
-        A = S[i] = rotl((S[i] + A + B) % MOD, 3)
-        B = L[j] = rotl((L[j] + A + B) % MOD, (A + B))
-        i = (i + 1) % t
-        j = (j + 1) % c
-
-    return S
-
-
-# =========================
-# RC6 BLOCK FUNCTIONS
-# =========================
-def encrypt_block(block: bytes, S):
-    A, B, C, D = struct.unpack("<4I", block)
-
-    B = (B + S[0]) % MOD
-    D = (D + S[1]) % MOD
-
-    for i in range(1, R + 1):
-        t = rotl((B * (2 * B + 1)) % MOD, LOG_W)
-        u = rotl((D * (2 * D + 1)) % MOD, LOG_W)
-
-        A = (rotl(A ^ t, u) + S[2 * i]) % MOD
-        C = (rotl(C ^ u, t) + S[2 * i + 1]) % MOD
-
-        A, B, C, D = B, C, D, A
-
-    A = (A + S[2 * R + 2]) % MOD
-    C = (C + S[2 * R + 3]) % MOD
-
-    return struct.pack("<4I", A, B, C, D)
-
-
-def decrypt_block(block: bytes, S):
-    A, B, C, D = struct.unpack("<4I", block)
-
-    C = (C - S[2 * R + 3]) % MOD
-    A = (A - S[2 * R + 2]) % MOD
-
-    for i in range(R, 0, -1):
-        A, B, C, D = D, A, B, C
-
-        t = rotl((B * (2 * B + 1)) % MOD, LOG_W)
-        u = rotl((D * (2 * D + 1)) % MOD, LOG_W)
-
-        C = rotr((C - S[2 * i + 1]) % MOD, t) ^ u
-        A = rotr((A - S[2 * i]) % MOD, u) ^ t
-
-    D = (D - S[1]) % MOD
-    B = (B - S[0]) % MOD
-
-    return struct.pack("<4I", A, B, C, D)
-
-
-# =========================
-# CBC FILE FUNCTIONS
-# =========================
-def encrypt_file(path, password):
-    key = password.encode()
-    S = key_schedule(key)
-
-    with open(path, "rb") as f:
-        data = f.read()
-
-    data = pad(data)
-
-    iv = os.urandom(16)
-    prev = iv
-    result = iv
-
-    for i in range(0, len(data), 16):
-        block = data[i:i+16]
-        block = bytes(a ^ b for a, b in zip(block, prev))
-        encrypted = encrypt_block(block, S)
-        result += encrypted
-        prev = encrypted
-
-    output_path = path + ".rc6"
-
-    with open(output_path, "wb") as f:
-        f.write(result)
-
-    messagebox.showinfo("Успіх", f"Файл зашифровано:\n{output_path}")
-
-
-def decrypt_file(path, password):
-    key = password.encode()
-    S = key_schedule(key)
-
-    with open(path, "rb") as f:
-        data = f.read()
-
-    iv = data[:16]
-    data = data[16:]
-
-    prev = iv
-    result = b""
-
-    for i in range(0, len(data), 16):
-        block = data[i:i+16]
-        decrypted = decrypt_block(block, S)
-        decrypted = bytes(a ^ b for a, b in zip(decrypted, prev))
-        result += decrypted
-        prev = block
-
-    result = unpad(result)
-
-    output_path = path.replace(".rc6", "_decrypted")
-
-    with open(output_path, "wb") as f:
-        f.write(result)
-
-    messagebox.showinfo("Успіх", f"Файл дешифровано:\n{output_path}")
-
-
-# =========================
-# GUI
-# =========================
-def select_encrypt():
-    path = filedialog.askopenfilename()
-    password = password_entry.get()
-
-    if not password:
-        messagebox.showerror("Помилка", "Введіть пароль!")
-        return
-
-    encrypt_file(path, password)
-
-
-def select_decrypt():
-    path = filedialog.askopenfilename(filetypes=[("RC6 files", "*.rc6")])
-    password = password_entry.get()
-
-    if not password:
-        messagebox.showerror("Помилка", "Введіть пароль!")
-        return
-
-    decrypt_file(path, password)
-
-
-root = tk.Tk()
-root.title("RC6 File Encryptor")
-root.geometry("400x200")
-
-tk.Label(root, text="Пароль:").pack(pady=5)
-password_entry = tk.Entry(root, show="*", width=30)
-password_entry.pack(pady=5)
-
-tk.Button(root, text="Зашифрувати файл", command=select_encrypt, width=25).pack(pady=10)
-tk.Button(root, text="Дешифрувати файл", command=select_decrypt, width=25).pack(pady=5)
-
-root.mainloop()
+from tkinter import ttk, filedialog, messagebox
+from key_derivation import derive_key
+from file_crypto import encrypt_file, decrypt_file
+import os
+
+
+class RC6App:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("RC6 Secure Encryptor")
+        self.root.geometry("540x500")
+        self.root.configure(bg="#1e1e2e")
+        self.root.resizable(False, False)
+
+        self.selected_file = None
+        self.setup_style()
+        self.create_widgets()
+
+    def setup_style(self):
+        style = ttk.Style()
+        style.theme_use("clam")
+
+        style.configure("TFrame", background="#1e1e2e")
+        style.configure("TLabel", background="#1e1e2e", foreground="white", font=("Segoe UI", 10))
+        style.configure("TButton", font=("Segoe UI", 10), padding=6)
+        style.configure("TEntry", padding=6)
+        style.configure("TCombobox", padding=6)
+
+    def create_widgets(self):
+        frame = ttk.Frame(self.root, padding=25)
+        frame.pack(fill="both", expand=True)
+
+        ttk.Label(frame, text="RC6 File Encryption",
+                  font=("Segoe UI", 18, "bold")).pack(pady=10)
+
+        # Mode
+        self.mode_var = tk.StringVar(value="encrypt")
+        mode_frame = ttk.Frame(frame)
+        mode_frame.pack(pady=10)
+
+        ttk.Radiobutton(mode_frame, text="Encrypt",
+                        variable=self.mode_var, value="encrypt").pack(side="left", padx=15)
+
+        ttk.Radiobutton(mode_frame, text="Decrypt",
+                        variable=self.mode_var, value="decrypt").pack(side="left", padx=15)
+
+        # Key size
+        ttk.Label(frame, text="Key Size (bytes):").pack(pady=(15, 5))
+        self.key_size = ttk.Combobox(frame,
+                                     values=["16", "24", "32"],
+                                     state="readonly")
+        self.key_size.set("16")
+        self.key_size.pack(fill="x")
+
+        # Password
+        ttk.Label(frame, text="Password:").pack(pady=(15, 5))
+
+        password_frame = ttk.Frame(frame)
+        password_frame.pack(fill="x")
+
+        self.password_entry = ttk.Entry(password_frame, show="*")
+        self.password_entry.pack(side="left", fill="x", expand=True)
+
+        self.show_password = False
+        ttk.Button(password_frame, text="👁",
+                   width=3,
+                   command=self.toggle_password).pack(side="left", padx=5)
+
+        # File
+        ttk.Button(frame, text="Choose File",
+                   command=self.choose_file).pack(pady=15)
+
+        self.file_label = ttk.Label(frame, text="No file selected")
+        self.file_label.pack()
+
+        # Progress bar
+        self.progress = ttk.Progressbar(frame, length=400, mode="determinate")
+        self.progress.pack(pady=15)
+
+        # Run
+        ttk.Button(frame, text="Run",
+                   command=self.run_crypto).pack(pady=10)
+
+        # Status
+        self.status_label = ttk.Label(frame, text="")
+        self.status_label.pack(pady=10)
+
+    def toggle_password(self):
+        self.show_password = not self.show_password
+        self.password_entry.config(show="" if self.show_password else "*")
+
+    def choose_file(self):
+        file_path = filedialog.askopenfilename()
+        if file_path:
+            self.selected_file = file_path
+            self.file_label.config(text=os.path.basename(file_path))
+
+    def update_progress(self, value):
+        self.progress["value"] = value
+        self.root.update_idletasks()
+
+    def run_crypto(self):
+        if not self.selected_file:
+            messagebox.showerror("Error", "Select a file first.")
+            return
+
+        password = self.password_entry.get()
+        if not password:
+            messagebox.showerror("Error", "Enter password.")
+            return
+
+        key = derive_key(password, int(self.key_size.get()))
+        self.progress["value"] = 0
+
+        try:
+            if self.mode_var.get() == "encrypt":
+                output = self.selected_file + ".rc6"
+                elapsed, size = encrypt_file(
+                    self.selected_file,
+                    output,
+                    key,
+                    self.update_progress
+                )
+            else:
+                output = self.selected_file.replace(".rc6", "_decrypted")
+                elapsed, size = decrypt_file(
+                    self.selected_file,
+                    output,
+                    key,
+                    self.update_progress
+                )
+
+            speed = (size / (1024 * 1024)) / elapsed if elapsed > 0 else 0
+
+            self.status_label.config(
+                text=f"Done in {elapsed:.3f} sec | Speed: {speed:.2f} MB/s"
+            )
+
+        except Exception as e:
+            messagebox.showerror("Error", str(e))
