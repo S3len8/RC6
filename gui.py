@@ -1,8 +1,10 @@
 import tkinter as tk
+from PIL import Image, ImageTk
 from tkinter import filedialog
 from key_derivation import derive_key
 from file_crypto import encrypt_file, decrypt_file
 import os
+import sys
 
 # ── Palette ────────────────────────────────────────────────────────────────────
 BG          = "#0f1117"
@@ -57,6 +59,22 @@ class RC6App:
         self.selected_file = None
         self.show_password = False
 
+        # ── Load assets (icon + header logo) ──
+        # _here = os.path.dirname(os.path.abspath(__file__))
+        _here = getattr(sys, '_MEIPASS', os.path.dirname(os.path.abspath(__file__)))
+        try:
+            _icon_path = os.path.join(_here, "icon.ico")
+            self.root.iconbitmap(_icon_path)
+        except Exception:
+            pass
+
+        try:
+            _logo_path = os.path.join(_here, "logo.png")
+            _logo_img = Image.open(_logo_path).resize((38, 38), Image.LANCZOS)
+            self._logo_photo = ImageTk.PhotoImage(_logo_img)
+        except Exception:
+            self._logo_photo = None
+
         self._build_ui()
 
     def _build_ui(self):
@@ -69,7 +87,13 @@ class RC6App:
 
         tk.Label(hdr_inner, text="RC6", font=("Segoe UI", 20, "bold"),
                  fg=BLUE, bg=SURFACE).pack(side="left")
-        tk.Label(hdr_inner, text=" Secure Encryptor", font=("Segoe UI", 14),
+
+        # Logo image next to "Secure Encryptor"
+        if self._logo_photo:
+            tk.Label(hdr_inner, image=self._logo_photo, bg=SURFACE,
+                     cursor="arrow").pack(side="left", padx=(8, 4))
+
+        tk.Label(hdr_inner, text="Secure Encryptor", font=("Segoe UI", 14),
                  fg=TEXT_H1, bg=SURFACE).pack(side="left", pady=3)
         tk.Label(hdr_inner, text="v2.0", font=F_SMALL,
                  fg=TEXT_DIM, bg=SURFACE).pack(side="right", pady=3)
