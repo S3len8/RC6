@@ -1,4 +1,5 @@
 import struct
+import os
 
 # =========================
 # ПАРАМЕТРИ RC6
@@ -113,27 +114,64 @@ def decrypt_block(block: bytes, S):
 
 
 # =========================
-# ШИФРУВАННЯ ДОВІЛЬНОГО ТЕКСТУ
+# CBC MODE
 # =========================
-def encrypt(data: bytes, key: bytes):
+def encrypt_file(input_path, output_path, key: bytes):
     S = key_schedule(key)
+
+    with open(input_path, "rb") as f:
+        data = f.read()
+
     data = pad(data)
 
-    result = b""
+    iv = os.urandom(16)
+    prev_block = iv
+    ciphertext = iv
+
     for i in range(0, len(data), 16):
-        result += encrypt_block(data[i:i+16], S)
+        block = data[i:i+16]
 
-    return result
+        # XOR з попереднім блоком (CBC)
+        block = bytes(a ^ b for a, b in zip(block, prev_block))
+
+        encrypted_block = encrypt_block(block, S)
+        ciphertext += encrypted_block
+        prev_block = encrypted_block
+
+    with open(output_path, "wb") as f:
+        f.write(ciphertext)
+
+    print("Файл зашифровано!")
 
 
-def decrypt(data: bytes, key: bytes):
+def decrypt_file(input_path, output_path, key: bytes):
     S = key_schedule(key)
 
-    result = b""
-    for i in range(0, len(data), 16):
-        result += decrypt_block(data[i:i+16], S)
+    with open(input_path, "rb") as f:
+        data = f.read()
 
-    return unpad(result)
+    iv = data[:16]
+    data = data[16:]
+
+    prev_block = iv
+    plaintext = b""
+
+    for i in range(0, len(data), 16):
+        block = data[i:i+16]
+        decrypted_block = decrypt_block(block, S)
+
+        # XOR після дешифрування
+        decrypted_block = bytes(a ^ b for a, b in zip(decrypted_block, prev_block))
+
+        plaintext += decrypted_block
+        prev_block = block
+
+    plaintext = unpad(plaintext)
+
+    with open(output_path, "wb") as f:
+        f.write(plaintext)
+
+    print("Файл дешифровано!")
 
 
 # =========================
@@ -141,11 +179,6 @@ def decrypt(data: bytes, key: bytes):
 # =========================
 if __name__ == "__main__":
     key = b"ExampleSecretKey123"
-    plaintext = b"Hello RC6 encryption test!!!"
 
-    encrypted = encrypt(plaintext, key)
-    decrypted = decrypt(encrypted, key)
-
-    print("Plaintext :", plaintext)
-    print("Encrypted :", encrypted.hex())
-    print("Decrypted :", decrypted)
+    encrypt_file("input.txt", "encrypted.rc6", key)
+    decrypt_file("encrypted.rc6", "decrypted.txt", key)

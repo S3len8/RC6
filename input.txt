@@ -1,0 +1,113 @@
+import struct
+import math
+
+# == ПАРАМЕТРИ RC6 =======================
+W = 32  # розмір слова (біт)
+R = 20  # кількість раундів
+MOD = 2 ** W
+LOG_W = 5  # log2(32)
+
+P32 = 0xB7E15163
+Q32 = 0x9E3779B9
+
+
+# == ДОПОМІЖНІ ФУНКЦІЇ ======================
+def rotl(x, n):
+    n = n % W
+    return ((x << n) | (x >> (W - n))) & (MOD - 1)
+
+
+def rotr(x, n):
+    n = n % W
+    return ((x >> n) | (x << (W - n))) & (MOD - 1)
+
+
+# == ГЕНЕРАЦІЯ ПІДКЛЮЧІВ ======================
+def key_schedule(key: bytes):
+    b = len(key)
+    c = max(1, (b + 3) // 4)
+
+    # Перетворюємо ключ у слова L
+    L = [0] * c
+    for i in range(b - 1, -1, -1):
+        L[i // 4] = (L[i // 4] << 8) + key[i]
+
+    # Ініціалізація масиву S
+    t = 2 * R + 4
+    S = [0] * t
+    S[0] = P32
+    for i in range(1, t):
+        S[i] = (S[i - 1] + Q32) % MOD
+
+    # Перемішування
+    A = B = i = j = 0
+    v = 3 * max(c, t)
+
+    for _ in range(v):
+        A = S[i] = rotl((S[i] + A + B) % MOD, 3)
+        B = L[j] = rotl((L[j] + A + B) % MOD, (A + B) % W)
+        i = (i + 1) % t
+        j = (j + 1) % c
+
+    return S
+
+
+# == ШИФРУВАННЯ 1 БЛОКУ (128 біт) =======================
+def encrypt_block(block: bytes, S):
+    A, B, C, D = struct.unpack("<4I", block)
+
+    B = (B + S[0]) % MOD
+    D = (D + S[1]) % MOD
+
+    for i in range(1, R + 1):
+        t = rotl((B * (2 * B + 1)) % MOD, LOG_W)
+        u = rotl((D * (2 * D + 1)) % MOD, LOG_W)
+
+        A = (rotl(A ^ t, u % W) + S[2 * i]) % MOD
+        C = (rotl(C ^ u, t % W) + S[2 * i + 1]) % MOD
+
+        A, B, C, D = B, C, D, A
+
+    A = (A + S[2 * R + 2]) % MOD
+    C = (C + S[2 * R + 3]) % MOD
+
+    return struct.pack("<4I", A, B, C, D)
+
+
+# == ДЕШИФРУВАННЯ 1 БЛОКУ =======================
+def decrypt_block(block: bytes, S):
+    A, B, C, D = struct.unpack("<4I", block)
+
+    C = (C - S[2 * R + 3]) % MOD
+    A = (A - S[2 * R + 2]) % MOD
+
+    for i in range(R, 0, -1):
+        A, B, C, D = D, A, B, C
+
+        t = rotl((B * (2 * B + 1)) % MOD, LOG_W)
+        u = rotl((D * (2 * D + 1)) % MOD, LOG_W)
+
+        C = rotr((C - S[2 * i + 1]) % MOD, t % W) ^ u
+        A = rotr((A - S[2 * i]) % MOD, u % W) ^ t
+
+    D = (D - S[1]) % MOD
+    B = (B - S[0]) % MOD
+
+    return struct.pack("<4I", A, B, C, D)
+
+
+# == ПРИКЛАД ВИКОРИСТАННЯ =======================
+if __name__ == "__main__":
+    key = b"ExampleSecretKey123"  # 16, 24 або 32 байти
+    plaintext = b"HelloRC6World!!"  # рівно 16 байт
+
+    S = key_schedule(key)
+
+    encrypted = encrypt_block(plaintext, S)
+    decrypted = decrypt_block(encrypted, S)
+
+    print("Plaintext :", plaintext)
+    print("Encrypted :", encrypted.hex())
+    print("Decrypted :", decrypted)
+
+Зміни код, щоб він працював
